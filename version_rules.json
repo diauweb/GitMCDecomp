@@ -1,0 +1,18 @@
+{
+    "20w14infinite": {
+        "branch": "20w14infinite",
+        "base": "20w13b"
+    },
+    "1.16.5": {
+        "branch": "1.16.5x",
+        "base": "1.16.4"
+    },
+    "1.16.5-rc1": {
+        "branch": "1.16.5x",
+        "base": "1.16.4"
+    },
+    "22w13oneblockatatime": {
+        "branch": "22w13oneblockatatime",
+        "base": "1.18.2"
+    }
+}

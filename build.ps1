@@ -75,8 +75,19 @@ function Update-McdeGitRepository {
 }
 
 function Get-McdeMinecraftManifest {
-    $json = Invoke-WebRequest -Uri 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
+    $json = Invoke-WebRequest -Uri (Get-MirrorUri 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')
     ConvertFrom-Json $json.Content
+}
+
+function Get-MirrorUri {
+    param(
+        [string] $Uri
+    )
+
+    $newUri = [System.UriBuilder]::new($Uri)
+    $newUri.Host = 'bmclapi2.bangbang93.com'
+
+    $newUri.Uri.ToString()
 }
 
 function Build-McdeDecompilationTarget {
@@ -86,7 +97,7 @@ function Build-McdeDecompilationTarget {
     [System.Collections.ArrayList] $targets = @()
 
     foreach ($version in $manifest) {
-        $version_data = Invoke-WebRequest -Uri $version.url | ConvertFrom-Json
+        $version_data = Invoke-WebRequest -Uri (Get-MirrorUri $version.url) | ConvertFrom-Json
         $downloads = $version_data.downloads
 
         if ((Get-Date $version_data.releaseTime) -lt $break_date) {

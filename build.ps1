@@ -7,7 +7,7 @@ function New-McdeRepository {
 }
 
 function Build-McdeProject {
-    gradle clean shadowJar -s
+    ./gradlew clean shadowJar -s
 }
 
 
@@ -126,12 +126,14 @@ function reverse {
     $arr
 }
 
-$targets = Build-McdeDecompilationTarget | reverse
-# ConvertTo-Json $targets | Set-Content -Path versionTable.json
+function Build-McdeAllVersion {
+    $targets = Build-McdeDecompilationTarget | reverse
+    # ConvertTo-Json $targets | Set-Content -Path versionTable.json
 
-foreach ($v in $targets) {
-    Write-Host "Building $v"
-    Build-McdeDecompiledSource -Version $v.Id -Uri (Get-MirrorUri $v.Uri) -ErrorAction Stop
-    Update-McdeGitRepository -Version $v.Id -ErrorAction Stop
-    Remove-Item -Recurse -Path "./tmp-$($v.Id)"
+    foreach ($v in $targets) {
+        Write-Host "Building $v"
+        Build-McdeDecompiledSource -Version $v.Id -Uri (Get-MirrorUri $v.Uri) -ErrorAction Stop
+        Update-McdeGitRepository -Version $v.Id -ErrorAction Stop
+        Remove-Item -Recurse -Path "./tmp-$($v.Id)"
+    }
 }

@@ -92,7 +92,7 @@ function Get-MirrorUri {
 
 function Build-McdeDecompilationTarget {
     $manifest = (Get-McdeMinecraftManifest).versions | Where-Object {$_.type -notin 'old_alpha', 'old_beta'}
-    $break_date = Get-Date '7/19/2019 5:25:47 PM'
+    $break_date = Get-Date '7/19/2019 5:00:00 PM'
     
     [System.Collections.ArrayList] $targets = @()
 
@@ -131,7 +131,7 @@ $targets = Build-McdeDecompilationTarget | reverse
 
 foreach ($v in $targets) {
     Write-Host "Building $v"
-    Build-McdeDecompiledSource -Version $v.Id -Uri $v.Uri -ErrorAction Stop
+    Build-McdeDecompiledSource -Version $v.Id -Uri (Get-MirrorUri $v.Uri) -ErrorAction Stop
     Update-McdeGitRepository -Version $v.Id -ErrorAction Stop
     Remove-Item -Recurse -Path "./tmp-$($v.Id)"
 }

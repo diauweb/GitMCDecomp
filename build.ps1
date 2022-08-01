@@ -1,8 +1,13 @@
 
 function New-McdeRepository {
+    if (Test-Path -Path out-repo) {
+        Remove-Item -Recurse -Force out-repo
+    }
+
     New-Item -Type Directory out-repo
     Push-Location out-repo
     git init
+    git commit --allow-empty -m 'base commit' --author 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
     Pop-Location
 }
 
@@ -12,6 +17,7 @@ function Build-McdeProject {
 
 
 # $env:_JAVA_OPTIONS='-Djava.net.useSystemProxies=true'
+$global:McdeUseMirror = $true
 
 function Build-McdeDecompiledSource {
     [CmdletBinding()]
@@ -20,11 +26,13 @@ function Build-McdeDecompiledSource {
         [string] $Uri
     )
 
-    java -cp build/libs/gitmc.jar io.github.nickid2018.gitmc.RemapJar $Version $Uri
+    Write-Host "[$Version] Remapping jar"
+    java -cp build/libs/gitmc.jar io.github.nickid2018.gitmc.RemapJar $Version $Uri ($global:McdeUseMirror ? 'true' : 'false')
     if (!$?) {
         Write-Error "Failed to remap $Version jar" -ErrorAction Stop
     }
 
+    Write-Host "[$Version] Decompiling jar"
     $remappedName = "remapped-$Version.jar"
     java -cp build/libs/gitmc.jar org.benf.cfr.reader.Main --silent true --outputdir "tmp-$Version" --comments false $remappedName
     if (!$?) {
@@ -84,14 +92,28 @@ function Get-MirrorUri {
         [string] $Uri
     )
 
-    $newUri = [System.UriBuilder]::new($Uri)
-    $newUri.Host = 'bmclapi2.bangbang93.com'
+    if ($global:McdeUseMirror) {
+        $newUri = [System.UriBuilder]::new($Uri)
+        $newUri.Host = 'bmclapi2.bangbang93.com'
 
-    $newUri.Uri.ToString()
+        $newUri.Uri.ToString()
+    } else {
+        $Uri
+    }
+
 }
 
 function Build-McdeDecompilationTarget {
+
+    param(
+        [switch] $ExcludeSnapshot
+    )
+
     $manifest = (Get-McdeMinecraftManifest).versions | Where-Object {$_.type -notin 'old_alpha', 'old_beta'}
+    if ($ExcludeSnapshot) {
+        $manifest = $manifest | Where-Object {$_.type -ne 'snapshot'}
+    }
+
     $break_date = Get-Date '7/19/2019 5:00:00 PM'
     
     [System.Collections.ArrayList] $targets = @()
@@ -106,7 +128,7 @@ function Build-McdeDecompilationTarget {
         }
 
         if (Get-Member -InputObject $downloads -MemberType Properties -Name 'client_mappings') {
-            Write-Host "Getting Mappable Version $($version_data.id)"
+            Write-Host "[$($version_data.id)] is queued to build"
             [Void] $targets.Add([PSCustomObject] @{
                 Id = $version_data.id
                 Uri = $version.url
@@ -117,6 +139,7 @@ function Build-McdeDecompilationTarget {
         }
     }
 
+    Write-Host "[Manifest] found $($targets.Count) versions to build"
     $targets
 }
 
@@ -127,13 +150,29 @@ function reverse {
 }
 
 function Build-McdeAllVersion {
-    $targets = Build-McdeDecompilationTarget | reverse
+    
+    param (
+        [switch] $ExcludeSnapshot,
+        [switch] $NoMirror
+    )
+
+    $global:McdeUseMirror = !$NoMirror
+    Write-Host "[Mirror] $global:McdeUseMirror"
+
+    $targets = Build-McdeDecompilationTarget -ExcludeSnapshot $ExcludeSnapshot | reverse
+
     # ConvertTo-Json $targets | Set-Content -Path versionTable.json
 
     foreach ($v in $targets) {
-        Write-Host "Building $v"
-        Build-McdeDecompiledSource -Version $v.Id -Uri (Get-MirrorUri $v.Uri) -ErrorAction Stop
-        Update-McdeGitRepository -Version $v.Id -ErrorAction Stop
-        Remove-Item -Recurse -Path "./tmp-$($v.Id)"
+        $time = Measure-Command {
+            Write-Host -ForegroundColor Blue "[$($v.Id)] Start building"
+            Write-Host $v
+
+            Build-McdeDecompiledSource -Version $v.Id -Uri (Get-MirrorUri $v.Uri) -ErrorAction Stop
+            Update-McdeGitRepository -Version $v.Id -ErrorAction Stop
+            Remove-Item -Recurse -Path "./tmp-$($v.Id)"
+        }
+
+        Write-Host -ForegroundColor Green "[$($v.Id)] Finished in $($time.TotalSeconds)s"
     }
 }
